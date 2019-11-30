@@ -1,0 +1,159 @@
+---
+title: "TP ML"
+author: "Adnan Zeddoun, OMA"
+date: "10/10/2019"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Exercice 1. Introduction aux SVM
+
+```{r}
+x = c(1, 2, 4, 5, 6)
+y = c(1, 1, 2, 2, 1)
+z = c(1, 1, -1, -1, 1)
+plot(x, rep(0, 5), pch = c(21, 22)[y], bg = c("red", "green3")[y],
+     cex = 1.5, ylim = c(-1.7, 1), xlim = c(0, 8), ylab = "",
+     xlab = "x", las = 2)
+grid()
+text(matrix(c(1.5, 4.3, 7, 0.5, 0.5, 0.5), 3, 2),
+     c("class 1", "class -1", "class 1"),
+     col = c("red", "green3", "red"))
+abline(h=0) ; abline(v=c(3, 5.5))
+```
+\newpage
+
+*Question 1* 
+
+La formulation duale du problème d'optimisation associé aux SVM est (en dimension 1) :
+$$ \underset{\alpha}{max} \ L(\alpha)=\sum_{k=1}^{5}\alpha_{k}-\frac{1}{2}\sum_{i,j}(x_{i}x_{j}+1)^{2}\alpha_{i}\alpha_{j}y_{i}y_{j}$$
+Sous les contraintes $$0 \le\alpha_{k}\le C, \sum_{k=1}^{5}\alpha_{k}y_{k} = 0$$
+
+*Question 2* 
+```{r}
+library(kernlab)
+z = c(1, 1, -1, -1, 1)
+ker = polydot(degree = 2, scale = 1, offset = 1) #noyau polynomial de degré 2
+
+c = matrix(rep(-1,5))
+H = kernelPol(ker,x,,z)
+A = t(z)
+b = 0
+C = 100
+l = matrix(0,5,1)
+u = matrix(C,5,1)
+r = 0
+
+res = ipop(c,H,A,b,l,u,r)
+# @c Vecteur devant le "monôme d'ordre 1" de la fonction à maximiser
+# @H Matrice à noyau intervenant dans le terme quadratique de la fonction à maximiser
+# @A,b,r contraintes pour que la somme définie dans les contraintes soit nulle
+# @l Contrainte imposant que chaque composante du vecteur inconnu soit positive ou nulle
+# @u Contrainte imposant que chaque composante du vecteur inconnu soit négative ou nulle
+```
+
+*Question 3*
+
+Le résultat donné est alors
+```{r}
+alpha = res@primal
+print(alpha)
+```
+
+*Question 4*
+
+On trouve que en réinjectant les $\alpha_{k}$ non nuls dans la fonction primale à minimiser, on a $$f(x) = w_{2}x^{2} - w_{1}x + w_{0}$$ avec 
+$$w_{2} = 0.667, w_{1} = 5.33, w_{0} = 9$$
+
+*Question 5*
+
+```{r}
+abscisse = seq(from = 0, to = 8, by =0.01)
+
+f = function(x){
+  n = length(x)
+  func = c(rep(0,n))
+  for (i in 1:n){
+    func[i] = 0.667*x[i]^2 - 5.33*x[i] + 9
+  }
+  return(func)
+}
+
+x = c(1, 2, 4, 5, 6)
+y = c(1, 1, 2, 2, 1)
+z = c(1, 1, -1, -1, 1)
+plot(x, rep(0, 5), pch = c(21, 22)[y], bg = c("red", "green3")[y],
+     cex = 1.5, ylim = c(-1.7, 1), xlim = c(0, 8), ylab = "",
+     xlab = "x", las = 2)
+grid()
+text(matrix(c(1.5, 4.3, 7, 0.5, 0.5, 0.5), 3, 2),
+     c("class 1", "class -1", "class 1"),
+     col = c("red", "green3", "red"))
+abline(h=0) ; abline(v=c(3, 5.5)) 
+lines(abscisse,f(abscisse))
+
+```
+\newpage
+
+# Exercice 2. Support Vector Machines et validation croisée
+
+*Question 1*
+
+```{r}
+load("Banane.Rdata")
+```
+
+*Question 2*
+
+```{r}
+a = as.matrix(Apprentissage[,1:2])
+b = as.matrix(Apprentissage[,3])
+
+fil <- ksvm(x=a,y=b,kernel="rbfdot",kpar=list(sigma=5),C=20,type="C-svc",cross=2)
+plot(fil,data=a)
+```
+
+*Question 3*
+
+Plus $C$ et $\sigma$ augmentent et plus la frontière est oscillante permettant une séparation plus fine des points. Trop augmenter ces paramètres peut conduire à une sur-apprentissage du jeu de données.
+
+*Question 4*
+
+```{r}
+Pen = c(0.1,0.5,1,2,3,5,10,20)
+sigm = c(0.01,0.1,1,2,3,5,7)
+Err1 = matrix(0,length(Pen),1)
+Err2 = matrix(0,length(sigm),1)
+for (i in 1:length(Pen)){
+  s = ksvm(x=a,y=b,kernel="rbfdot",kpar=list(sigma=5),C=Pen[i],type="C-svc",cross=2)
+  Err1[i] = s@cross
+}
+for (i in 1:length(sigm)){
+  s = ksvm(x=a,y=b,kernel="rbfdot",kpar=list(sigma=sigm[i]),C=5,type="C-svc",cross=2)
+  Err2[i] = s@cross
+}
+
+plot(Pen,Err1)
+plot(sigm,Err2)
+```
+
+On prend les paramètres minimisant l'erreur par cross-validation.
+On choisit $$(C^{*},\sigma^{*}) = (3,3)$$
+
+*Question 5*
+
+```{r}
+fil2 <- ksvm(x=a,y=b,kernel="rbfdot",kpar=list(sigma=3),C=3,type="C-svc",cross=2)
+z = as.matrix(Test[,1:2])
+q = as.matrix(Test[,3])
+pred = predict(fil2,z)
+plot(fil2,data=a)
+g = table(pred, q)
+tauxerr = (g[1,2]+g[2,1])/(g[1,2]+g[2,1]+g[1,1]+g[2,2])
+print(tauxerr)
+```
+
+Le taux d'erreur est de 11% sur le jeu de données Test.
